@@ -139,13 +139,55 @@ return the filename."
       (save-buffer)
       tmpfile)))
 
+(defun mu4e-browse-html-article (msg)
+  ;; Inspired from `gnus-article-browse-html-article'
+  "View \"text/html\" parts of the MSG with a WWW browser.
+Inline images embedded in a message using the cid scheme, as they are
+generally considered to be safe, will be processed properly.
+
+Warning: Spammers use links to images (using the http scheme) in
+HTML articles to verify whether you have read the message.  As
+`mu4e-browse-html-article' passes the HTML content to the browser
+without eliminating these \"web bugs\" you should only use it for
+mails from trusted senders.
+
+This command creates temporary files to pass HTML contents including
+images if any to the browser, and deletes them when exiting the group
+\(if you want)."
+  ;; Cf. `mm-w3m-safe-url-regexp'
+  (interactive)
+  (with-temp-buffer
+    (let* ((msg (with-current-buffer mu4e~view-buffer-name
+                  mu4e~view-message))
+           (path (mu4e-message-field msg :path))
+           header parts)
+      (mu4e~view-gnus-insert-and-decode msg)
+      (setq parts (mm-dissect-buffer t t))
+      ;; If singlepart, enforce a list.
+      (when (and (bufferp (car parts))
+		 (stringp (car (mm-handle-type parts))))
+	(setq parts (list parts)))
+      (article-hide-headers)
+      (setq header (buffer-substring-no-properties
+                    (goto-char (point-min))
+                    (if (search-forward "\n\n" nil t)
+                        (match-beginning 0)
+                      (goto-char (point-max))
+                      (skip-chars-backward "\t\n ")
+                      (point))))
+      ;; Process the list
+      (unless (gnus-article-browse-html-parts parts header)
+	(gnus-error 3 "Mail doesn't contain a \"text/html\" part!"))
+      (mm-destroy-parts parts))))
+
 (defun mu4e-action-view-in-browser (msg)
   "View the body of MSG in a web browser.
 You can influence the browser to use with the variable
 `browse-url-generic-program', and see the discussion of privacy
 aspects in `(mu4e) Displaying rich-text messages'."
-  (browse-url (concat "file://"
-                      (mu4e~write-body-to-html msg))))
+  (if mu4e-view-use-gnus (mu4e-browse-html-article msg)
+    (browse-url (concat "file://"
+                        (mu4e~write-body-to-html msg)))))
 
 (defun mu4e-action-view-with-xwidget (msg)
   "View the body of MSG inside xwidget-webkit.

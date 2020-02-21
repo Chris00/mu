@@ -368,11 +368,22 @@ article-mode."
           (when (not embedded) (setq mu4e~view-message msg))))
       (switch-to-buffer buf))))
 
+(defun mu4e~view-gnus-insert-and-decode (msg)
+  "Insert the content of MSG, including headers, in the current
+buffer and decode it."
+  (let ((path (mu4e-message-field msg :path)))
+    (insert-file-contents-literally path)
+    (unless (message-fetch-field "Content-Type" t)
+      ;; For example, for messages in `mu4e-drafts-folder'
+      (let ((coding (or (default-value 'buffer-file-coding-system)
+                        'prefer-utf-8)))
+        (recode-region (point-min) (point-max) coding 'no-conversion)))
+    (run-hooks 'gnus-article-decode-hook)))
+
 (defun mu4e~view-gnus (msg)
   "View MSG using Gnu's article mode. Experimental."
   (require 'gnus-art)
   (let ((marked-read (mu4e~view-mark-as-read-maybe msg))
-        (path (mu4e-message-field msg :path))
         (inhibit-read-only t)
         ;; support signature verification
         (mm-verify-option 'known)
@@ -386,16 +397,10 @@ article-mode."
     (unless marked-read
       ;; when we're being marked as read, no need to start rendering
       ;; the messages; just the minimal so (update... ) can find us.
-      (insert-file-contents-literally path)
-      (unless (message-fetch-field "Content-Type" t)
-        ;; For example, for messages in `mu4e-drafts-folder'
-        (let ((coding (or (default-value 'buffer-file-coding-system)
-                          'prefer-utf-8)))
-          (recode-region (point-min) (point-max) coding 'no-conversion)))
       (setq
        gnus-summary-buffer (get-buffer-create " *appease-gnus*")
        gnus-original-article-buffer (current-buffer))
-      (run-hooks 'gnus-article-decode-hook)
+      (mu4e~view-gnus-insert-and-decode msg)
       (let ((mu4e~view-rendering t) ; customize gnus in mu4e
             (max-specpdl-size mu4e-view-max-specpdl-size)
             ;; Possibly add headers (before "Attachments")
