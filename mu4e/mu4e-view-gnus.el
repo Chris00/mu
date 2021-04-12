@@ -83,6 +83,8 @@ Note that cid images that are embedded in a message won’t be blocked."
     (buffer-disable-undo)
     (insert-file-contents-literally path nil nil nil t)
     (mm-enable-multibyte)
+    (while (re-search-forward "\r" nil t)
+      (delete-char -1))
     (setq
      gnus-summary-buffer (get-buffer-create " *appease-gnus*")
      gnus-original-article-buffer (current-buffer)
